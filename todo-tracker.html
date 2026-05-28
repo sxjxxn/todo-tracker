@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>할 일 트래커</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',sans-serif;background:#f8f7f4;color:#1a1a1a;min-height:100vh}
+.container{max-width:720px;margin:0 auto;padding:2rem 1rem}
+header{margin-bottom:2rem}
+header h1{font-size:22px;font-weight:700;letter-spacing:-.02em}
+header p{font-size:13px;color:#888;margin-top:4px}
+.tabs{display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1.5px solid #e8e6e0}
+.tab{padding:9px 18px;font-size:14px;cursor:pointer;border:none;background:none;color:#999;border-bottom:2px solid transparent;margin-bottom:-1.5px;font-family:'Noto Sans KR',sans-serif;font-weight:500}
+.tab.active{color:#1a1a1a;border-bottom:2px solid #1a1a1a}
+.view{display:none}.view.active{display:block}
+.add-row{display:flex;gap:8px;margin-bottom:1.25rem;align-items:center}
+.add-row input[type=text]{flex:1 1 auto;min-width:0;padding:10px 14px;font-size:14px;border:1.5px solid #e8e6e0;border-radius:10px;background:#fff;color:#1a1a1a;font-family:'Noto Sans KR',sans-serif;outline:none;transition:border-color .15s}
+.add-row input[type=text]:focus{border-color:#1a1a1a}
+.add-row select{flex:0 0 62px;width:62px;padding:10px 4px;font-size:12px;border:1.5px solid #e8e6e0;border-radius:10px;background:#fff;color:#666;font-family:'Noto Sans KR',sans-serif;text-align:center;outline:none}
+.add-btn{flex:0 0 auto;padding:10px 16px;background:#1a1a1a;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-weight:500;white-space:nowrap}
+.add-btn:active{opacity:.8}
+.task-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;border:1.5px solid #e8e6e0;margin-bottom:6px;background:#fff;transition:opacity .15s}
+.task-item.done{opacity:.45}
+.task-item.done .task-text{text-decoration:line-through;color:#aaa}
+.check-btn{width:22px;height:22px;border-radius:50%;border:1.5px solid #ccc;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.task-item.done .check-btn{background:#1a1a1a;border-color:#1a1a1a;color:#fff}
+.check-icon{font-size:12px;display:none}
+.task-item.done .check-icon{display:block}
+.task-text{flex:1;font-size:14px;color:#1a1a1a;line-height:1.4}
+.task-tag{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500;flex-shrink:0}
+.del-btn{background:none;border:none;cursor:pointer;color:#ccc;font-size:18px;padding:0 4px;line-height:1;transition:color .15s}
+.del-btn:hover{color:#1a1a1a}
+.edit-input{flex:1;font-size:14px;border:none;background:none;color:#1a1a1a;outline:none;border-bottom:1.5px solid #ccc;font-family:'Noto Sans KR',sans-serif}
+.daily-header{display:flex;align-items:center;gap:12px;margin-bottom:1.25rem}
+.daily-header h2{font-size:16px;font-weight:700}
+.today-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:#f0efe9;color:#888}
+.empty{color:#bbb;font-size:13px;text-align:center;padding:2.5rem 0;line-height:1.8}
+.section-label{font-size:11px;color:#aaa;margin-bottom:8px;margin-top:16px;font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+.cal-nav,.week-nav{display:flex;align-items:center;gap:12px;margin-bottom:1.25rem}
+.cal-nav span,.week-nav span{flex:1;text-align:center;font-size:15px;font-weight:700}
+.cal-nav button,.week-nav button{background:none;border:1.5px solid #e8e6e0;border-radius:8px;padding:6px 14px;cursor:pointer;color:#1a1a1a;font-size:14px}
+.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.day-header{text-align:center;font-size:12px;color:#aaa;padding:4px 0}
+.day-cell{min-height:62px;padding:6px;border-radius:10px;border:1.5px solid #e8e6e0;background:#fff}
+.day-cell.today{border:2px solid #1a1a1a;background:#f8f7f4}
+.day-cell.other-month{background:#fafaf8;border-color:#f0efe9}
+.day-cell.other-month .day-num{color:#ddd}
+.day-num{font-size:12px;font-weight:500;margin-bottom:4px}
+.day-num-wrap{background:#1a1a1a;color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+.dot-row{display:flex;flex-wrap:wrap;gap:3px}
+.dot{width:6px;height:6px;border-radius:50%}
+.week-header-cell{text-align:center;font-size:12px;color:#aaa;padding:4px 0}
+.week-day-col{border-radius:10px;border:1.5px solid #e8e6e0;padding:8px;background:#fff;min-height:110px}
+.week-day-col.today{border:2px solid #1a1a1a;background:#f8f7f4}
+.week-day-num{font-size:13px;font-weight:700;margin-bottom:6px}
+.week-day-num-inner{background:#1a1a1a;color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+.week-task{font-size:11px;padding:2px 5px;border-radius:4px;margin-bottom:3px;color:#1a1a1a;border:1px solid #e8e6e0;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.week-task.done{opacity:.4;text-decoration:line-through}
+.legend{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap}
+.legend-item{font-size:11px;display:flex;align-items:center;gap:5px;color:#888}
+.legend-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.loading{text-align:center;padding:2rem;color:#aaa;font-size:13px}
+@media(max-width:480px){
+  .container{padding:1rem .75rem}
+  .tab{padding:8px 12px;font-size:13px}
+  .month-grid{gap:2px}
+  .day-cell{min-height:50px;padding:4px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>📋 할 일 트래커</h1>
+    <p id="header-date"></p>
+  </header>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('daily')">데일리</button>
+    <button class="tab" onclick="switchTab('weekly')">위클리</button>
+    <button class="tab" onclick="switchTab('monthly')">먼슬리</button>
+    <button class="tab" onclick="switchTab('all')">전체</button>
+  </div>
+  <div id="view-daily" class="view active"></div>
+  <div id="view-weekly" class="view"></div>
+  <div id="view-monthly" class="view"></div>
+  <div id="view-all" class="view"></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://pzxsejmpzgatbyscoosd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_r4Ko6v-LxDL-SNlIVxZgyw_Ud8c5DNi';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const TAG_COLORS={공부:'#7F77DD',일정:'#1D9E75',운동:'#D85A30'};
+const TAG_BG={공부:'#EEEDFE',일정:'#E1F5EE',운동:'#FAECE7'};
+const TAGS=['공부','일정','운동'];
+const TODAY=new Date();TODAY.setHours(0,0,0,0);
+const toKey=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const todayKey=toKey(TODAY);
+const fmt=d=>{const days=['일','월','화','수','목','금','토'];return`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`};
+
+document.getElementById('header-date').textContent=fmt(TODAY);
+
+let tasks=[];
+let calMonth={y:TODAY.getFullYear(),m:TODAY.getMonth()};
+let weekOffset=0;
+let editingId=null;
+
+async function loadTasks(){
+  const {data,error}=await sb.from('tasks').select('*').order('created_at',{ascending:true});
+  if(error){console.error(error);return;}
+  tasks=data||[];
+  render();
+}
+
+async function addTask(text,tag,dateKey){
+  if(!text.trim())return;
+  const{data,error}=await sb.from('tasks').insert([{text:text.trim(),tag,date:dateKey,done:false}]).select();
+  if(error){console.error(error);return;}
+  tasks.push(data[0]);
+  render();
+}
+
+async function toggleTask(id){
+  const t=tasks.find(x=>x.id===id);if(!t)return;
+  const{error}=await sb.from('tasks').update({done:!t.done}).eq('id',id);
+  if(error){console.error(error);return;}
+  t.done=!t.done;
+  render();
+}
+
+async function deleteTask(id){
+  const{error}=await sb.from('tasks').delete().eq('id',id);
+  if(error){console.error(error);return;}
+  tasks=tasks.filter(x=>x.id!==id);
+  render();
+}
+
+async function saveEdit(id,val){
+  if(!val.trim()){editingId=null;render();return;}
+  const{error}=await sb.from('tasks').update({text:val.trim()}).eq('id',id);
+  if(error){console.error(error);return;}
+  const t=tasks.find(x=>x.id===id);if(t)t.text=val.trim();
+  editingId=null;render();
+}
+
+function startEdit(id){editingId=id;render();}
+
+function taskHtml(t){
+  const isEditing=editingId===t.id;
+  const tagStyle=`background:${TAG_BG[t.tag]||TAG_BG['일정']};color:${TAG_COLORS[t.tag]||TAG_COLORS['일정']}`;
+  return`<div class="task-item${t.done?' done':''}" id="item-${t.id}">
+    <button class="check-btn" onclick="toggleTask('${t.id}')">
+      <span class="check-icon">✓</span>
+    </button>
+    ${isEditing
+      ?`<input class="edit-input" value="${t.text.replace(/"/g,'&quot;')}" id="ei-${t.id}"
+          onblur="saveEdit('${t.id}',this.value)"
+          onkeydown="if(event.key==='Enter')saveEdit('${t.id}',this.value);if(event.key==='Escape'){editingId=null;render()}"/>`
+      :`<span class="task-text" ondblclick="startEdit('${t.id}')">${t.text}</span>`}
+    <span class="task-tag" style="${tagStyle}">${t.tag}</span>
+    <button class="del-btn" onclick="deleteTask('${t.id}')" aria-label="삭제">×</button>
+  </div>`;
+}
+
+function addBar(dateKey){
+  return`<div class="add-row">
+    <input type="text" placeholder="새 할 일을 입력하세요..." id="new-text"
+      onkeydown="if(event.key==='Enter'){const t=document.getElementById('new-text');const tg=document.getElementById('new-tag');addTask(t.value,tg.value,'${dateKey}');t.value=''}"/>
+    <select id="new-tag">${TAGS.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+    <button class="add-btn" onclick="const t=document.getElementById('new-text');const tg=document.getElementById('new-tag');addTask(t.value,tg.value,'${dateKey}');t.value=''">추가</button>
+  </div>`;
+}
+
+function renderDaily(){
+  const el=document.getElementById('view-daily');
+  const todayTasks=tasks.filter(t=>t.date===todayKey);
+  const done=todayTasks.filter(t=>t.done);const pending=todayTasks.filter(t=>!t.done);
+  el.innerHTML=`<div class="daily-header">
+    <h2>${fmt(TODAY)}</h2>
+    <span class="today-badge">오늘 · ${pending.length}개 남음</span>
+  </div>
+  ${addBar(todayKey)}
+  ${pending.length===0&&done.length===0?`<div class="empty">오늘의 할 일이 없어요 🌿<br>위에서 추가해보세요!</div>`:''}
+  ${pending.map(t=>taskHtml(t)).join('')}
+  ${done.length>0?`<div class="section-label">완료 ${done.length}개</div>${done.map(t=>taskHtml(t)).join('')}`:''}`;
+  if(editingId)setTimeout(()=>{const ei=document.getElementById('ei-'+editingId);if(ei){ei.focus();ei.select();}},10);
+}
+
+function getWeekDates(offset){
+  const d=new Date(TODAY);const day=d.getDay();d.setDate(d.getDate()-day+offset*7);
+  return Array.from({length:7},(_,i)=>{const nd=new Date(d);nd.setDate(d.getDate()+i);return nd;});
+}
+
+function renderWeekly(){
+  const el=document.getElementById('view-weekly');
+  const days=getWeekDates(weekOffset);
+  const label=`${days[0].getMonth()+1}월 ${days[0].getDate()}일 — ${days[6].getMonth()+1}월 ${days[6].getDate()}일`;
+  const dayNames=['일','월','화','수','목','금','토'];
+  const cols=days.map(d=>{
+    const key=toKey(d);const dt=tasks.filter(t=>t.date===key);const isToday=key===todayKey;
+    const numHtml=isToday?`<div class="week-day-num"><span class="week-day-num-inner">${d.getDate()}</span></div>`:`<div class="week-day-num">${d.getDate()}</div>`;
+    const tw=dt.map(t=>`<div class="week-task${t.done?' done':''}" style="border-left:3px solid ${TAG_COLORS[t.tag]||TAG_COLORS['일정']}" onclick="toggleTask('${t.id}')" title="${t.text}">${t.text.length>9?t.text.slice(0,9)+'…':t.text}</div>`).join('');
+    return`<div class="week-day-col${isToday?' today':''}">${numHtml}${tw}</div>`;
+  }).join('');
+  el.innerHTML=`<div class="week-nav">
+    <button onclick="weekOffset--;render()">←</button>
+    <span>${label}</span>
+    <button onclick="weekOffset++;render()">→</button>
+  </div>
+  ${addBar(todayKey)}
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">${dayNames.map(n=>`<div class="week-header-cell">${n}</div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">${cols}</div>`;
+}
+
+function renderMonthly(){
+  const el=document.getElementById('view-monthly');
+  const {y,m}=calMonth;
+  const first=new Date(y,m,1);const last=new Date(y,m+1,0);const startDay=first.getDay();
+  const dayNames=['일','월','화','수','목','금','토'];
+  let cells='';
+  for(let i=0;i<startDay;i++){const d=new Date(y,m,1-startDay+i);cells+=`<div class="day-cell other-month"><div class="day-num">${d.getDate()}</div></div>`;}
+  for(let d=1;d<=last.getDate();d++){
+    const key=toKey(new Date(y,m,d));const dt=tasks.filter(t=>t.date===key);const isToday=key===todayKey;
+    const numHtml=isToday?`<div class="day-num"><span class="day-num-wrap">${d}</span></div>`:`<div class="day-num">${d}</div>`;
+    const dots=dt.slice(0,6).map(t=>`<div class="dot" style="background:${t.done?'#ccc':TAG_COLORS[t.tag]||TAG_COLORS['일정']}"></div>`).join('');
+    cells+=`<div class="day-cell${isToday?' today':''}">${numHtml}<div class="dot-row">${dots}</div></div>`;
+  }
+  const total=startDay+last.getDate();const rem=(7-total%7)%7;
+  for(let i=1;i<=rem;i++){cells+=`<div class="day-cell other-month"><div class="day-num">${i}</div></div>`;}
+  el.innerHTML=`<div class="cal-nav">
+    <button onclick="if(calMonth.m===0){calMonth.m=11;calMonth.y--;}else{calMonth.m--;}render()">←</button>
+    <span>${y}년 ${m+1}월</span>
+    <button onclick="if(calMonth.m===11){calMonth.m=0;calMonth.y++;}else{calMonth.m++;}render()">→</button>
+  </div>
+  <div class="month-grid">${dayNames.map(n=>`<div class="day-header">${n}</div>`).join('')}${cells}</div>
+  <div class="legend">${TAGS.map(t=>`<span class="legend-item"><span class="legend-dot" style="background:${TAG_COLORS[t]}"></span>${t}</span>`).join('')}</div>`;
+}
+
+function renderAll(){
+  const el=document.getElementById('view-all');
+  const sorted=[...tasks].sort((a,b)=>a.date.localeCompare(b.date));
+  const groups={};sorted.forEach(t=>{if(!groups[t.date])groups[t.date]=[];groups[t.date].push(t);});
+  const keys=Object.keys(groups).sort();
+  let html=addBar(todayKey);
+  if(keys.length===0)html+=`<div class="empty">아직 할 일이 없어요 🌿</div>`;
+  keys.forEach(k=>{
+    const isToday=k===todayKey;
+    html+=`<div class="section-label" style="${isToday?'color:#1a1a1a':''}">${isToday?'오늘 — '+k:k}</div>`;
+    html+=groups[k].map(t=>taskHtml(t)).join('');
+  });
+  el.innerHTML=html;
+  if(editingId)setTimeout(()=>{const ei=document.getElementById('ei-'+editingId);if(ei){ei.focus();ei.select();}},10);
+}
+
+function render(){renderDaily();renderWeekly();renderMonthly();renderAll();}
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelector(`[onclick="switchTab('${name}')"]`).classList.add('active');
+  document.getElementById('view-'+name).classList.add('active');
+}
+
+loadTasks();
+</script>
+</body>
+</html>
